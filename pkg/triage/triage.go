@@ -200,12 +200,16 @@ func processFileOptions(guest *string, config *conf.Config) error {
 }
 
 func writeBodyfile(config *conf.Config) error {
+	ex, err := utils.NewExcluder(config.Excludes)
+	if err != nil {
+		return err
+	}
 	f, err := os.Create(filepath.Join(config.OutputRootPath, conf.BodyfileName))
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	n, err := utils.WriteBodyfile(f, config.RootPath)
+	n, err := utils.WriteBodyfile(f, config.RootPath, ex)
 	log.ToolLogger.Info(fmt.Sprintf("[+] bodyfile entries: %d", n))
 	return err
 }
