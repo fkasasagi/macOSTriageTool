@@ -213,6 +213,7 @@ var presetFileList = [][]string{
 	{"/var/root/Library/Preferences/com.apple.LaunchServices.QuarantineEventsV2", "true", "true", "true", "true", "Gatekeeper and XProtect"},
 	{"/var/tmp", "true", "true", "false", "false", "Tmp Dir"},
 	{"/Users/*/.zsh_sessions/", "true", "true", "true", "true", "zsh_history"},
+	{"/.Spotlight-V100/Store-V2/", "true", "true", "true", "true", "Spotlight (whole store: store.db needs dbStr-* maps to be parsed)"},
 	{"/Users/*/Library/Application Support/com.apple.TCC/TCC.db", "true", "true", "true", "false", "TCC (Privacy permissions)"},
 	{"/Library/Application Support/com.apple.TCC/TCC.db", "true", "true", "true", "false", "TCC (Privacy permissions)"},
 	{"/private/var/db/com.apple.backgroundtaskmanagement/", "true", "true", "false", "true", "Persistance (Background Task Management)"},
