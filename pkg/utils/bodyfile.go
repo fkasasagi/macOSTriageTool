@@ -14,21 +14,16 @@ import (
 )
 
 // WriteBodyfile walks every file under root (symlinks are not followed) and
-// writes one TSK 3.x bodyfile line per entry, skipping excluded subtrees.
-// Unreadable entries are logged and skipped.
-func WriteBodyfile(w io.Writer, root string, ex *Excluder) (int, error) {
+// writes one TSK 3.x bodyfile line per entry. Excludes are deliberately not
+// applied: the bodyfile is the complete timeline. Unreadable entries are
+// logged and skipped.
+func WriteBodyfile(w io.Writer, root string) (int, error) {
 	bw := bufio.NewWriterSize(w, 1<<20)
 	n := 0
 	err := filepath.WalkDir(root, func(host string, d fs.DirEntry, err error) error {
 		guest := toGuest(root, host)
 		if err != nil {
 			log.FileInfoErrorLogger.Error("[-] bodyfile: " + guest + ": " + err.Error())
-			return nil
-		}
-		if ex.Excluded(guest) {
-			if d.IsDir() {
-				return filepath.SkipDir
-			}
 			return nil
 		}
 		info, err := os.Lstat(host)

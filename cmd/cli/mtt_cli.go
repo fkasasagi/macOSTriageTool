@@ -27,9 +27,9 @@ func init() {
 	flag.BoolVar(&config.IsEnabledToCalcHash, "c", false, "calc the file hash. (default: false)")
 	flag.BoolVar(&config.IsEnabledToGetStatInfo, "s", false, "get the stat info. (default: false)")
 	flag.BoolVar(&config.IsEnabledToSaveIntoDmg, "d", false, "save files into a dmg. (default: false)")
-	flag.BoolVar(&config.IsEnabledToWriteBodyfile, "bodyfile", false, "write a TSK bodyfile of ALL files under the root (excludes applied). (default: false)")
+	flag.BoolVar(&config.IsEnabledToWriteBodyfile, "bodyfile", false, "write a TSK bodyfile of ALL files under the root (-exclude is NOT applied). (default: false)")
 	flag.IntVar(&config.Jobs, "j", runtime.NumCPU(), "number of parallel copy workers.")
-	flag.Func("exclude", "guest path glob to exclude from copy, stat info and bodyfile, e.g. '/Users/*/Documents'. repeatable.", func(v string) error {
+	flag.Func("exclude", "guest path glob to exclude from copy and stat info (not from -bodyfile), e.g. '/Users/*/Documents'. repeatable.", func(v string) error {
 		config.Excludes = append(config.Excludes, v)
 		return nil
 	})

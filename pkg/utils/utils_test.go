@@ -145,22 +145,19 @@ func TestCopyUnitsSplitsAroundExcludesAndDropsNested(t *testing.T) {
 	}
 }
 
-func TestBodyfileRespectsExcludes(t *testing.T) {
+func TestBodyfileListsEverything(t *testing.T) {
 	root := fakeRoot(t)
 	var buf bytes.Buffer
-	n, err := WriteBodyfile(&buf, root, mustExcluder(t, "/Users/*/Documents"))
+	n, err := WriteBodyfile(&buf, root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	out := buf.String()
-	if strings.Contains(out, "Documents") || strings.Contains(out, "target.txt") {
-		t.Errorf("excluded path leaked into bodyfile:\n%s", out)
+	if !strings.Contains(out, "|/Users/alice/Documents/target.txt|") {
+		t.Errorf("bodyfile must list every file, excludes are not applied:\n%s", out)
 	}
 	if strings.Contains(out, root) {
 		t.Errorf("host root path leaked into bodyfile:\n%s", out)
-	}
-	if !strings.Contains(out, "|/Users/alice/.zsh_history|") {
-		t.Errorf("missing expected entry:\n%s", out)
 	}
 	if lines := strings.Count(out, "\n"); lines != n {
 		t.Errorf("count %d != lines %d", n, lines)

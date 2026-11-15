@@ -18,7 +18,7 @@ type Config struct {
 	IsEnabledToSaveIntoDmg bool
 	IsEnabledToWriteBodyfile bool
 
-	// Guest-path glob patterns removed from copy, stat info and bodyfile.
+	// Guest-path glob patterns removed from copy and stat info (not bodyfile).
 	Excludes []string
 	// Number of parallel copy workers.
 	Jobs int

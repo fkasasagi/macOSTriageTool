@@ -157,15 +157,16 @@ sudo mount_apfs -o rdonly,noexec,nobrowse /dev/disk12s5 /Volumes/evidence_data
 
 ### 収集
 ```sh
-sudo ./build/mtt -root /Volumes/evidence_data -output ~/out -s -bodyfile \
+sudo ./build/mtt -root /Volumes/evidence_data -output ~/out -s \
      -exclude '/Users/*/Documents'
 ```
+`-bodyfile` を付けると除外したフォルダのファイルも時刻つきで出力されるため、除外対象を配布物から隠したいときは付けない。
 
 | オプション | 内容 |
 |---|---|
 | `-root` | Data ボリュームのマウント先。`/System/Volumes/Data/...`, `/var`, `/tmp`, `/etc` はボリューム上のパスに読み替える |
-| `-exclude` | ゲストパスの glob (繰り返し可)。コピー・`-s`・`-bodyfile` のすべてから除外する |
-| `-bodyfile` | root 配下の全ファイルを TSK bodyfile (`bodyfile.txt`, epoch 秒/UTC) に出力。`mactime -b bodyfile.txt` で時系列化 |
+| `-exclude` | ゲストパスの glob (繰り返し可)。コピーと `-s` から除外する (`-bodyfile` には効かない) |
+| `-bodyfile` | root 配下の**全ファイル** (除外指定に関係なく) を TSK bodyfile (`bodyfile.txt`, epoch 秒/UTC) に出力。`mactime -b bodyfile.txt` で時系列化 |
 | `-j` | 並列コピー数 (既定: CPU 数) |
 
 - 出力 (`ROOT/`, `file_info.csv`, `bodyfile.txt`) のパスはゲストから見たパス。ホストのマウント先は含まない。
