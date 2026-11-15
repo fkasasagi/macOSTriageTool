@@ -13,6 +13,7 @@ const (
 	VolumePath = "/Volumes"
 	ScheduledTriageFileListName = "scheduled_triage_file_list.txt"
 	SystemProfilerFileName = "system_profiler.txt"
+	BodyfileName = "bodyfile.txt"
 
 	DmgFileSystem = "APFS"
 )

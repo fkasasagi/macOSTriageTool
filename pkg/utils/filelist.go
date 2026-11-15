@@ -3,7 +3,6 @@ package utils
 import (
 	"bufio"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/Recruit-CSIRT/macOSTriageTool/pkg/conf"
@@ -213,6 +212,11 @@ var presetFileList = [][]string{
 	{"/var/root/.Trash", "true", "true", "true", "false", "User Behavior"},
 	{"/var/root/Library/Preferences/com.apple.LaunchServices.QuarantineEventsV2", "true", "true", "true", "true", "Gatekeeper and XProtect"},
 	{"/var/tmp", "true", "true", "false", "false", "Tmp Dir"},
+	{"/Users/*/.zsh_sessions/", "true", "true", "true", "true", "zsh_history"},
+	{"/Users/*/Library/Application Support/com.apple.TCC/TCC.db", "true", "true", "true", "false", "TCC (Privacy permissions)"},
+	{"/Library/Application Support/com.apple.TCC/TCC.db", "true", "true", "true", "false", "TCC (Privacy permissions)"},
+	{"/private/var/db/com.apple.backgroundtaskmanagement/", "true", "true", "false", "true", "Persistance (Background Task Management)"},
+	{"/private/var/db/dslocal/nodes/Default/groups/*.plist", "true", "true", "true", "false", "Group Account"},
 }
 
 type TriageFileList struct {
@@ -239,7 +243,11 @@ func (f *TriageFileList) New (config *conf.Config) error {
 
 	f.WriteSettingsToLog(config)
 
-	f.NormalizeFileList(config)
+	ex, err := NewExcluder(config.Excludes)
+	if err != nil {
+		return err
+	}
+	f.NormalizeFileList(config, ex)
 
 	return nil
 }
@@ -275,27 +283,25 @@ func (f *TriageFileList) LoadCustomList (config *conf.Config) error{
 	return nil
 }
 
-func (f *TriageFileList) NormalizeFileList(config *conf.Config)  {
+// NormalizeFileList resolves every entry to existing guest paths under the
+// root and turns them into non-overlapping copy units with excludes removed.
+func (f *TriageFileList) NormalizeFileList(config *conf.Config, ex *Excluder) {
 
+	var resolved []string
 	for _, line := range append(f.FileList, f.UserFileList...) {
-		targetFilePath := filepath.Join(config.RootPath, line)
-
-		if strings.Contains(targetFilePath, "*") {
-
-			matches, err := filepath.Glob(targetFilePath)
-			if err != nil {
-				log.ToolLogger.Error("[-] Failed to extract * in the path. Path: " + targetFilePath)
-				log.ToolLogger.Error(err.Error())
-			}
-
-			f.NormalizedFileList = append(f.NormalizedFileList, matches...)
-
-		} else {
-			f.NormalizedFileList = append(f.NormalizedFileList, targetFilePath)
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
 		}
-
+		matches := ResolveGuestPaths(config.RootPath, line, ex)
+		if len(matches) == 0 {
+			log.ToolLogger.Debug("[-] Not found: " + line)
+			continue
+		}
+		resolved = append(resolved, matches...)
 	}
 
+	f.NormalizedFileList = CopyUnits(config.RootPath, resolved, ex)
 }
 
 

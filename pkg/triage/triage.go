@@ -7,6 +7,7 @@
 		"os/exec"
 		"path/filepath"
 		"strings"
+		"sync"
 
 		"github.com/Recruit-CSIRT/macOSTriageTool/pkg/conf"
 		"github.com/Recruit-CSIRT/macOSTriageTool/pkg/log"
@@ -66,11 +67,16 @@ func Triage(config *conf.Config) error {
 
 
 	log.ToolLogger.Info("[+] Start copying files")
-	for _, f := range triageList.NormalizedFileList {
-		copyFile(&f, config)
-	}
+	copyAll(triageList.NormalizedFileList, config)
 	log.ToolLogger.Info("[+] Finish copying files")
 
+	if config.IsEnabledToWriteBodyfile {
+		log.ToolLogger.Info("[+] Start writing bodyfile of all files under the root")
+		if err := writeBodyfile(config); err != nil {
+			log.ToolLogger.Error("[-] Failed to write bodyfile: " + err.Error())
+		}
+		log.ToolLogger.Info("[+] Finish writing bodyfile")
+	}
 
 	if config.IsEnabledToGetProfiler {
 		log.ToolLogger.Info("[+] Start getting system profiler")
@@ -86,10 +92,59 @@ func Triage(config *conf.Config) error {
 	return nil
 }
 
-func copyFile(fileFrom *string, config *conf.Config) {
+// copyAll copies the (non-overlapping) guest paths with config.Jobs parallel ditto workers.
+func copyAll(guests []string, config *conf.Config) {
+	jobs := config.Jobs
+	if jobs < 1 {
+		jobs = 1
+	}
+	// Create every parent directory up front: parallel ditto runs race on
+	// creating a shared parent ("File exists") and drop files silently.
+	for _, g := range guests {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(config.OutputDirPath, g)), 0o755); err != nil {
+			log.FileCopyLogger.Error("[-] Failed to create parent of: " + g + ": " + err.Error())
+		}
+	}
+	ch := make(chan string)
+	var wg sync.WaitGroup
+	for i := 0; i < jobs; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for g := range ch {
+				copyFile(g, config)
+			}
+		}()
+	}
+	for _, g := range guests {
+		ch <- g
+	}
+	close(ch)
+	wg.Wait()
+}
 
-	// ditto --rsrc --extattr --qtn --acl fileFrom fileTo
-	cmd := exec.Command(conf.CmdDitto, "--rsrc", "--extattr", "--qtn", "--acl", *fileFrom, filepath.Join(config.OutputDirPath, *fileFrom))
+func copyFile(guest string, config *conf.Config) {
+	src := filepath.Join(config.RootPath, guest)
+	dst := filepath.Join(config.OutputDirPath, guest)
+	fileFrom := &guest
+
+	// ditto follows a symlink given as the source; copy the link itself so
+	// nothing outside the root (or in an excluded tree) is ever read.
+	if info, err := os.Lstat(src); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		target, err := os.Readlink(src)
+		if err == nil {
+			err = os.Symlink(target, dst)
+		}
+		if err != nil {
+			log.FileCopyLogger.Error("[-] Failed to copy symlink: " + guest + ": " + err.Error())
+		} else {
+			log.FileCopyLogger.Info("[+] Copied symlink: " + guest)
+		}
+		return
+	}
+
+	// ditto --rsrc --extattr --qtn --acl src dst  (keeps quarantine/xattrs, ACLs, times)
+	cmd := exec.Command(conf.CmdDitto, "--rsrc", "--extattr", "--qtn", "--acl", src, dst)
 
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -103,9 +158,10 @@ func copyFile(fileFrom *string, config *conf.Config) {
 
 }
 
-func processFileOptions(filePath *string, config *conf.Config) error {
+func processFileOptions(guest *string, config *conf.Config) error {
 
-	err := filepath.Walk(*filePath, func(path string, info os.FileInfo, err error) error {
+	root := filepath.Join(config.RootPath, *guest)
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 
 		if err != nil {
 			log.FileInfoErrorLogger.Error("[-] Prevent panic by handling failure accessing a path. Path: " + path + ", Error: " + err.Error())
@@ -113,13 +169,14 @@ func processFileOptions(filePath *string, config *conf.Config) error {
 		}
 
 		// stat
-		customFileInfo := utils.NewFileInfo(&path)
+		rel, _ := filepath.Rel(config.RootPath, path)
+		customFileInfo := utils.NewFileInfo(path, "/"+filepath.ToSlash(rel))
 		if (config.IsEnabledToGetStatInfo || config.IsEnabledToSaveIntoDmg) && info != nil {
 			customFileInfo.SetStat(&info)
 		}
 
 		// hash
-		if config.IsEnabledToCalcHash && !info.IsDir()  {
+		if config.IsEnabledToCalcHash && info.Mode().IsRegular() {
 			_ = customFileInfo.SetHash()
 		}
 
@@ -140,6 +197,21 @@ func processFileOptions(filePath *string, config *conf.Config) error {
 	}
 
 	return nil
+}
+
+func writeBodyfile(config *conf.Config) error {
+	ex, err := utils.NewExcluder(config.Excludes)
+	if err != nil {
+		return err
+	}
+	f, err := os.Create(filepath.Join(config.OutputRootPath, conf.BodyfileName))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	n, err := utils.WriteBodyfile(f, config.RootPath, ex)
+	log.ToolLogger.Info(fmt.Sprintf("[+] bodyfile entries: %d", n))
+	return err
 }
 
 func getSystemProfiler(config *conf.Config) error {

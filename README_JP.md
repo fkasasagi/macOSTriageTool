@@ -139,3 +139,42 @@ This repository is available under the GNU General Public License v3.0
 ## Author
 moniik
 
+
+## オフライン収集 (fork 追加機能)
+
+VM やディスクイメージを停止状態でマウントし、Data ボリュームを `-root` に指定して収集する。
+FSEvents はシャットダウン時にディスクへ書き出されるため、ライブ収集より取りこぼしが少なく、収集の痕跡も証拠側に残らない。
+
+### マウント (書き込みゼロ)
+```sh
+# ブロックデバイスごと読み取り専用で接続 (APFS の内部処理も書き込めない)
+hdiutil attach -readonly -nomount -imagekey diskimage-class=CRawDiskImage Disk.img
+diskutil list            # 役割が Data の APFS ボリューム (例: disk12s5) を探す
+sudo mkdir -p /Volumes/evidence_data
+# owners を有効にしたまま (noowners を付けない) マウント → UID/GID が正しく残る
+sudo mount_apfs -o rdonly,noexec,nobrowse /dev/disk12s5 /Volumes/evidence_data
+```
+
+### 収集
+```sh
+sudo ./build/mtt -root /Volumes/evidence_data -output ~/out -s -bodyfile \
+     -exclude '/Users/*/Documents'
+```
+
+| オプション | 内容 |
+|---|---|
+| `-root` | Data ボリュームのマウント先。`/System/Volumes/Data/...`, `/var`, `/tmp`, `/etc` はボリューム上のパスに読み替える |
+| `-exclude` | ゲストパスの glob (繰り返し可)。コピー・`-s`・`-bodyfile` のすべてから除外する |
+| `-bodyfile` | root 配下の全ファイルを TSK bodyfile (`bodyfile.txt`, epoch 秒/UTC) に出力。`mactime -b bodyfile.txt` で時系列化 |
+| `-j` | 並列コピー数 (既定: CPU 数) |
+
+- 出力 (`ROOT/`, `file_info.csv`, `bodyfile.txt`) のパスはゲストから見たパス。ホストのマウント先は含まない。
+- `tool.log` / `file_copy.log` / `error.log` / `process_failed_files.log` にはホスト側のパスが残るので、配布物には含めない。
+- 出力先 (`<output>/evidence`) が空でなければ実行を拒否する (前回の残骸の混入防止)。
+- `-exclude` は大文字小文字を区別せず、エイリアス形 (`/System/Volumes/Data/...`) でも効く。Spotlight / FSEvents / DocumentRevisions / QuickLook 等の**派生アーティファクト**には除外対象の情報が残りうる点に注意。
+- シンボリックリンクは辿らない (ゲスト内の絶対パスのリンクでホストのファイルを拾わない)。
+
+### 後始末
+```sh
+sudo umount /Volumes/evidence_data && hdiutil detach /dev/diskN
+```

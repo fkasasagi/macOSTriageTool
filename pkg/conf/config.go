@@ -16,6 +16,12 @@ type Config struct {
 	IsEnabledToCalcHash    bool
 	IsEnabledToGetStatInfo bool
 	IsEnabledToSaveIntoDmg bool
+	IsEnabledToWriteBodyfile bool
+
+	// Guest-path glob patterns removed from copy, stat info and bodyfile.
+	Excludes []string
+	// Number of parallel copy workers.
+	Jobs int
 
 	// Path
 	RootPath       string

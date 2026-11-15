@@ -12,6 +12,7 @@ import (
 )
 
 type FileInfo struct {
+	hostPath string
 	filepath string
 	inode 	int
 	uid 	int
@@ -26,10 +27,9 @@ type FileInfo struct {
 	hash 	string
 }
 
-func NewFileInfo(filepath *string) FileInfo {
-	fileInfo := FileInfo{}
-	fileInfo.filepath = *filepath
-	return fileInfo
+// NewFileInfo reads hostPath and reports it as guestPath.
+func NewFileInfo(hostPath, guestPath string) FileInfo {
+	return FileInfo{hostPath: hostPath, filepath: guestPath}
 }
 
 func (s *FileInfo) SetStat (fileinfo *os.FileInfo) () {
@@ -39,15 +39,15 @@ func (s *FileInfo) SetStat (fileinfo *os.FileInfo) () {
 	s.flags = int((*fileinfo).Sys().(*syscall.Stat_t).Flags)
 	s.mode 	= (*fileinfo).Mode()
 	s.size 	= (*fileinfo).Size()
-	s.atime = time.Unix((*fileinfo).Sys().(*syscall.Stat_t).Atimespec.Sec, 9)
-	s.btime = time.Unix((*fileinfo).Sys().(*syscall.Stat_t).Birthtimespec.Sec, 9)
-	s.ctime = time.Unix((*fileinfo).Sys().(*syscall.Stat_t).Ctimespec.Sec, 9)
-	s.mtime = time.Unix((*fileinfo).Sys().(*syscall.Stat_t).Mtimespec.Sec, 9)
+	s.atime = time.Unix((*fileinfo).Sys().(*syscall.Stat_t).Atimespec.Unix()).UTC()
+	s.btime = time.Unix((*fileinfo).Sys().(*syscall.Stat_t).Birthtimespec.Unix()).UTC()
+	s.ctime = time.Unix((*fileinfo).Sys().(*syscall.Stat_t).Ctimespec.Unix()).UTC()
+	s.mtime = time.Unix((*fileinfo).Sys().(*syscall.Stat_t).Mtimespec.Unix()).UTC()
 }
 
 
 func (s *FileInfo) SetHash ()  error {
-	file, err := os.Open(s.filepath)
+	file, err := os.Open(s.hostPath)
 	if err != nil {
 		log.FileInfoErrorLogger.Error("[-] Failed to open the file. File: " + s.filepath)
 		return err
